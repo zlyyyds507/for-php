@@ -5,8 +5,13 @@ session_start();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
+    $captcha = isset($_POST['captcha']) ? trim($_POST['captcha']) : '';
     if ($username === '' || $password === '') {
         $msg = "用户名和密码不能为空！";
+    } elseif ($captcha === '') {
+        $msg = "验证码不能为空！";
+    } elseif (!isset($_SESSION['captcha']) || strtolower($captcha) !== strtolower($_SESSION['captcha'])) {
+        $msg = "验证码错误！";
     } else {
         $stmt = $conn->prepare("SELECT id, password FROM user WHERE username = ?");
         $stmt->bind_param("s", $username);
@@ -29,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     }
+    // 防止同一个验证码被多次提交
+    unset($_SESSION['captcha']);
 }
 ?>
 <!DOCTYPE html>
@@ -49,14 +56,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if($msg): ?>
         <div class="alert alert-danger"><?php echo $msg; ?></div>
     <?php endif; ?>
-    <form method="post">
+    <form method="post" autocomplete="off">
         <div class="mb-3">
             <label for="username" class="form-label">用户名</label>
-            <input type="text" class="form-control" id="username" name="username" required>
+            <input type="text" class="form-control" id="username" name="username" required autocomplete="off">
         </div>
         <div class="mb-3">
             <label for="password" class="form-label">密码</label>
-            <input type="password" class="form-control" id="password" name="password" required>
+            <input type="password" class="form-control" id="password" name="password" required autocomplete="off">
+        </div>
+        <div class="mb-3">
+            <label for="captcha" class="form-label">验证码</label>
+            <div class="d-flex align-items-center">
+                <input type="text" class="form-control me-2" id="captcha" name="captcha" maxlength="4" required autocomplete="off">
+                <img src="captcha.php" onclick="this.src='captcha.php?'+Math.random();" title="看不清？点击换一张" style="cursor:pointer;height:36px;">
+            </div>
         </div>
         <button type="submit" class="btn btn-primary w-100">登录</button>
     </form>
