@@ -1,33 +1,33 @@
 <?php
+// 1. 引入数据库配置，连接数据库
 include 'config.php';
 
-// 搜索关键字
+// 2. 获取筛选参数（搜索关键字、分类名）
 $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
-
-// 分类筛选
 $category = isset($_GET['category']) ? trim($_GET['category']) : '';
 
-// 分页参数
+// 3. 分页参数初始化
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $pageSize = 8; // 每页显示商品数量
 $offset = ($page - 1) * $pageSize;
 
-// 拼接WHERE条件和JOIN
+// 4. 拼接SQL的WHERE条件和JOIN语句，支持关键词和分类筛选
 $where = "WHERE 1";
 $params = [];
 $join = "";
 if ($keyword !== '') {
+    // 模糊搜索商品名
     $where .= " AND p.name LIKE ?";
     $params[] = "%{$keyword}%";
 }
 if ($category !== '' && $category !== '全部分类') {
-    // 按分类名筛选（JOIN category 和 product_category）
+    // 分类筛选，增加JOIN
     $join = "JOIN product_category pc ON p.id = pc.product_id JOIN category c ON pc.category_id = c.id";
     $where .= " AND c.name = ?";
     $params[] = $category;
 }
 
-// 获取总商品数量
+// 5. 获取总商品数量，用于分页
 $countSql = "SELECT COUNT(DISTINCT p.id) as total FROM product p $join $where";
 $stmt = $conn->prepare($countSql);
 if (!empty($params)) {
@@ -40,7 +40,7 @@ $totalRow = $countResult->fetch_assoc();
 $total = $totalRow ? $totalRow['total'] : 0;
 $stmt->close();
 
-// 查询商品数据
+// 6. 查询当前页商品数据
 $listSql = "SELECT DISTINCT p.* FROM product p $join $where ORDER BY p.created_at DESC LIMIT ?, ?";
 $stmt = $conn->prepare($listSql);
 if (!empty($params)) {
@@ -53,14 +53,14 @@ if (!empty($params)) {
 $stmt->execute();
 $result = $stmt->get_result();
 
-// 获取所有分类（用category表）
+// 7. 获取所有商品分类，用于筛选下拉菜单
 $categoryResult = $conn->query("SELECT * FROM category");
 $categories = [];
 while ($row = $categoryResult->fetch_assoc()) {
     $categories[] = $row['name'];
 }
 
-// 计算分页
+// 8. 计算总页数，供分页按钮使用
 $totalPages = ceil($total / $pageSize);
 ?>
 <!DOCTYPE html>
@@ -68,9 +68,11 @@ $totalPages = ceil($total / $pageSize);
 <head>
     <meta charset="UTF-8">
     <title>全部商品 - 酷牌商城 KupaiShop</title>
+    <!-- 引入Bootstrap样式 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
+<!-- 顶部导航栏 -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="KupaiShop.php">酷牌商城 KupaiShop</a>
@@ -81,6 +83,7 @@ $totalPages = ceil($total / $pageSize);
                 <li class="nav-item"><a class="nav-link" href="cart.php">购物车</a></li>
                 <li class="nav-item"><a class="nav-link" href="user.php">个人中心</a></li>
             </ul>
+            <!-- 登录/注册按钮 -->
             <a class="btn btn-outline-light me-2" href="login.php">登录</a>
             <a class="btn btn-light" href="register.php">注册</a>
         </div>
@@ -88,12 +91,14 @@ $totalPages = ceil($total / $pageSize);
 </nav>
 <div class="container mt-4">
     <h2>全部商品</h2>
-    <!-- 搜索与筛选 -->
+    <!-- 搜索与筛选表单 -->
     <form class="row g-3 align-items-center mb-4" method="get" action="product-list.php">
         <div class="col-auto">
+            <!-- 商品名搜索框 -->
             <input type="text" class="form-control" name="keyword" placeholder="搜索商品..." value="<?php echo htmlspecialchars($keyword); ?>">
         </div>
         <div class="col-auto">
+            <!-- 分类筛选下拉 -->
             <select class="form-select" name="category">
                 <option <?php if ($category == '' || $category == '全部分类') echo 'selected'; ?>>全部分类</option>
                 <?php foreach($categories as $cat): ?>
@@ -108,6 +113,7 @@ $totalPages = ceil($total / $pageSize);
     <!-- 商品列表 -->
     <div class="row">
         <?php if ($total == 0): ?>
+            <!-- 没有商品时提示 -->
             <div class="col-12">
                 <div class="alert alert-warning">没有找到相关商品。</div>
             </div>
@@ -127,7 +133,7 @@ $totalPages = ceil($total / $pageSize);
         </div>
         <?php endwhile; ?>
     </div>
-    <!-- 分页 -->
+    <!-- 分页按钮 -->
     <?php if ($totalPages > 1): ?>
     <nav aria-label="Page navigation">
         <ul class="pagination justify-content-center">
@@ -146,6 +152,7 @@ $totalPages = ceil($total / $pageSize);
     </nav>
     <?php endif; ?>
 </div>
+<!-- 页脚版权 -->
 <footer class="bg-primary text-white text-center py-3 mt-4">
     &copy; 2025 酷牌商城 KupaiShop. 保留所有权利。
 </footer>

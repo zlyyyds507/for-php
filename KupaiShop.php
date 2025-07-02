@@ -1,15 +1,19 @@
 <?php
+// 启动 session，用于用户登录状态等功能
 session_start();
-include 'config.php'; // 数据库连接
+// 引入数据库配置和连接
+include 'config.php';
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <title>酷牌商城首页 - KupaiShop</title>
+    <!-- 引入Bootstrap样式库 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
+        /* 轮播图相关样式 */
         .carousel-flex-row {
             display: flex;
             align-items: center;
@@ -51,6 +55,7 @@ include 'config.php'; // 数据库连接
     </style>
 </head>
 <body>
+<!-- 顶部导航栏 -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="KupaiShop.php">酷牌商城 KupaiShop</a>
@@ -60,11 +65,13 @@ include 'config.php'; // 数据库连接
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
+                <!-- 导航菜单 -->
                 <li class="nav-item"><a class="nav-link active" href="KupaiShop.php">首页</a></li>
                 <li class="nav-item"><a class="nav-link" href="product-list.php">全部商品</a></li>
                 <li class="nav-item"><a class="nav-link" href="cart.php">购物车</a></li>
                 <li class="nav-item"><a class="nav-link" href="user.php">个人中心</a></li>
             </ul>
+            <!-- 登录状态显示 -->
             <?php if(isset($_SESSION['user_id'])): ?>
                 <span class="navbar-text me-2">欢迎，<?php echo htmlspecialchars($_SESSION['username']); ?></span>
                 <a class="btn btn-outline-light" href="logout.php">退出</a>
@@ -77,7 +84,7 @@ include 'config.php'; // 数据库连接
 </nav>
 
 <div class="container mt-4">
-    <!-- 轮播图：动态读取最新3个商品及其前两个分类图片 -->
+    <!-- 轮播图区域：动态显示最新3个商品及其前两个分类图片 -->
     <?php
     // 获取最新3件商品
     $carouselProducts = [];
@@ -93,11 +100,12 @@ include 'config.php'; // 数据库连接
     // 对每个商品获取前两个分类及其图片
     $newCarouselProducts = [];
     foreach($carouselProducts as $prod) {
+        // 用LEFT JOIN查找商品对应的前2个分类及图片
         $catSql = "SELECT c.name, c.image FROM product_category pc LEFT JOIN category c ON pc.category_id = c.id WHERE pc.product_id = {$prod['id']} LIMIT 2";
         $catResult = $conn->query($catSql);
         $cats = [];
         while($catResult && ($catRow = $catResult->fetch_assoc())) {
-            $catRow['image'] = str_replace("\\", "/", $catRow['image']);
+            $catRow['image'] = str_replace("\\", "/", $catRow['image']); // 统一路径分隔符
             $cats[] = $catRow;
         }
         $prod['categories'] = $cats;
@@ -105,6 +113,7 @@ include 'config.php'; // 数据库连接
     }
     $carouselProducts = $newCarouselProducts;
     ?>
+    <!-- 轮播图结构，显示商品主图片和两侧分类图片 -->
     <div id="carouselExampleIndicators" class="carousel slide mb-4" data-bs-ride="carousel">
         <div class="carousel-indicators">
             <?php foreach($carouselProducts as $idx => $prod): ?>
@@ -125,7 +134,7 @@ include 'config.php'; // 数据库连接
                     <a href="product-detail.php?id=<?php echo $prod['id']; ?>">
                         <img src="<?php echo $prod['image']; ?>" class="carousel-main-img" alt="<?php echo htmlspecialchars($prod['name']); ?>">
                     </a>
-                    <!-- 右分类图片 -->
+                    <!-- 右分类图片（若没有第二个分类用第一个填充，否则留空色块） -->
                     <?php if(isset($prod['categories'][1]['image']) && $prod['categories'][1]['image']): ?>
                         <img src="<?php echo htmlspecialchars($prod['categories'][1]['image']); ?>" class="carousel-side-img right" alt="<?php echo htmlspecialchars($prod['categories'][1]['name']); ?>">
                     <?php elseif(isset($prod['categories'][0]['image']) && $prod['categories'][0]['image']): ?>
@@ -136,6 +145,7 @@ include 'config.php'; // 数据库连接
                 </div>
                 <div class="text-center pt-3">
                     <h5><?php echo htmlspecialchars($prod['name']); ?></h5>
+                    <!-- 分类标签 -->
                     <div>
                         <?php foreach($prod['categories'] as $cat): ?>
                         <span class="badge bg-secondary mx-1"><?php echo htmlspecialchars($cat['name']); ?></span>
@@ -145,6 +155,7 @@ include 'config.php'; // 数据库连接
             </div>
             <?php endforeach; ?>
         </div>
+        <!-- 轮播图左右切换按钮 -->
         <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators"
                 data-bs-slide="prev">
             <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -157,17 +168,17 @@ include 'config.php'; // 数据库连接
         </button>
     </div>
 
-    <!-- 欢迎语 -->
+    <!-- 欢迎语块 -->
     <div class="jumbotron p-4 mb-4 bg-light rounded-3">
         <h1 class="display-5">欢迎来到 <span style="color:#0d6efd;">酷牌商城</span>！</h1>
         <p class="lead">精选好物，品质保证，优惠多多，尽在酷牌！</p>
     </div>
 
-    <!-- 推荐商品（动态） -->
+    <!-- 推荐商品区域：取最新4件商品 -->
     <h2 class="mb-3">推荐商品</h2>
     <div class="row">
         <?php
-        // 取最新4件商品作为推荐
+        // 查询最新4件商品
         $sql = "SELECT * FROM product ORDER BY created_at DESC LIMIT 4";
         $result = $conn->query($sql);
         if (!$result) {
@@ -190,16 +201,18 @@ include 'config.php'; // 数据库连接
         <?php endwhile; ?>
     </div>
 
-    <!-- 更多商品链接 -->
+    <!-- 查看更多商品按钮 -->
     <div class="text-center mb-5">
         <a href="product-list.php" class="btn btn-outline-primary btn-lg">查看更多商品</a>
     </div>
 </div>
 
+<!-- 底部版权 -->
 <footer class="bg-primary text-white text-center py-3">
     &copy; 2025 酷牌商城 KupaiShop. 保留所有权利。
 </footer>
 
+<!-- 引入Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
