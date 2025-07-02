@@ -1,7 +1,11 @@
 <?php
 session_start();
 include 'config.php';
-if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
 $user_id = $_SESSION['user_id'];
 
 // 获取当前订单使用的地址
@@ -42,10 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay'])) {
     } elseif (empty($cart_products)) {
         $err = "购物车为空，无法下单！";
     } else {
-        // 1. 新增订单主表（状态设为待付款/pending）
+        // 1. 新增订单主表（状态设为待付款/已用中文）
         $address_id = $address['id'];
         $now = date('Y-m-d H:i:s');
-        $status = 'pending'; // 订单初始状态，和表结构一致
+        $status = '待付款'; // 中文
         $sql = "INSERT INTO `orders` (user_id, address_id, total, status, created_at) VALUES ($user_id, $address_id, $total, '$status', '$now')";
         $res = $conn->query($sql);
         if (!$res) {
@@ -83,48 +87,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay'])) {
     <h2>确认订单</h2>
     <h5>收货地址</h5>
     <?php if ($address): ?>
-        <div class="mb-2">
-            <?php
-                echo htmlspecialchars($address['name']) . '，';
-                echo htmlspecialchars($address['phone']) . '，';
-                echo htmlspecialchars($address['province'].$address['city'].$address['detail']);
-            ?>
-            <a href="address.php" class="btn btn-link btn-sm">更换地址</a>
+        <div class="mb-3">
+            <?php echo htmlspecialchars($address['name']); ?>，<?php echo htmlspecialchars($address['phone']); ?>，
+            <?php echo htmlspecialchars($address['province'] . $address['city'] . $address['detail']); ?>
         </div>
     <?php else: ?>
-        <div class="text-danger mb-2">
-            未填写收货地址，请<a href="address.php">添加地址</a>
-        </div>
+        <div class="alert alert-warning">未设置收货地址，请先添加！</div>
     <?php endif; ?>
 
-    <h5>商品信息</h5>
-    <table class="table mt-2">
-        <tr>
-            <th>商品</th>
-            <th>单价</th>
-            <th>数量</th>
-            <th>小计</th>
-        </tr>
+    <h5>商品列表</h5>
+    <?php if ($cart_products): ?>
+    <table class="table">
+        <thead><tr><th>商品</th><th>单价</th><th>数量</th><th>小计</th></tr></thead>
+        <tbody>
         <?php foreach ($cart_products as $item): ?>
-        <tr>
-            <td><?php echo htmlspecialchars($item['name']); ?></td>
-            <td>￥<?php echo number_format($item['price'],2); ?></td>
-            <td><?php echo $item['qty']; ?></td>
-            <td>￥<?php echo number_format($item['subtotal'],2); ?></td>
-        </tr>
+            <tr>
+                <td><?php echo htmlspecialchars($item['name']); ?></td>
+                <td>￥<?php echo number_format($item['price'], 2); ?></td>
+                <td><?php echo $item['qty']; ?></td>
+                <td>￥<?php echo number_format($item['subtotal'], 2); ?></td>
+            </tr>
         <?php endforeach; ?>
-        <tr>
-            <td colspan="3" class="text-end"><b>应付总额：</b></td>
-            <td class="text-danger"><b>￥<?php echo number_format($total,2); ?></b></td>
-        </tr>
+        </tbody>
     </table>
+    <div class="text-end mb-3">
+        <b>订单总额：</b><span class="text-danger">￥<?php echo number_format($total,2); ?></span>
+    </div>
+    <?php else: ?>
+        <div class="alert alert-warning">购物车无商品！</div>
+    <?php endif; ?>
 
     <?php if (!empty($err)): ?>
         <div class="alert alert-danger"><?php echo $err; ?></div>
     <?php endif; ?>
 
     <form method="post">
-        <button class="btn btn-success btn-lg" name="pay" type="submit" <?php if(!$address || !$cart_products): ?>disabled<?php endif; ?>>去支付</button>
+        <button name="pay" class="btn btn-primary" <?php if(!$address||!$cart_products)echo'disabled';?>>提交并去支付</button>
+        <a href="cart.php" class="btn btn-secondary">返回购物车</a>
     </form>
 </div>
 </body>

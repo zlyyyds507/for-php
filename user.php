@@ -10,26 +10,18 @@ $user_id = $_SESSION['user_id'];
 $user_res = $conn->query("SELECT username, email, balance FROM user WHERE id = $user_id");
 $user = $user_res->fetch_assoc();
 
-// 订单状态映射（仅用中文）
+// 订单状态映射（只保留已支付、已发货、已签收）
 $status_map = [
-    '待付款' => '待付款',
     '已支付' => '已支付',
     '已发货' => '已发货',
-    '已签收' => '已签收',
-    '已取消' => '已取消'
+    '已签收' => '已签收'
 ];
 
-// 获取订单
+// 根据筛选条件获取订单
 $status_filter = $_GET['status'] ?? '';
 $orders = [];
 if ($status_filter) {
-    // 只用中文状态
     $filter = $status_filter;
-    if ($filter == 'pending') $filter = '待付款';
-    elseif ($filter == 'paid') $filter = '已支付';
-    elseif ($filter == 'shipped') $filter = '已发货';
-    elseif ($filter == 'completed') $filter = '已签收';
-    elseif ($filter == 'cancelled') $filter = '已取消';
     $sql = "SELECT * FROM orders WHERE user_id = $user_id AND status='$filter' ORDER BY created_at DESC";
     $res = $conn->query($sql);
     while ($row = $res->fetch_assoc()) $orders[] = $row;
@@ -86,6 +78,9 @@ unset($order);
     <?php if (isset($_GET['signed'])): ?>
         <div class="alert alert-success">签收成功！</div>
     <?php endif; ?>
+    <?php if (isset($_GET['pay_success'])): ?>
+        <div class="alert alert-success">支付成功！</div>
+    <?php endif; ?>
     <h2>个人中心</h2>
     <div class="mb-3">
         <b>用户名：</b><?php echo htmlspecialchars($user['username']); ?><br>
@@ -102,11 +97,9 @@ unset($order);
 
     <div class="mb-4">
         <a href="user.php" class="btn btn-outline-primary btn-sm<?php if(!$status_filter)echo' active';?>">全部订单</a>
-        <a href="user.php?status=pending" class="btn btn-outline-primary btn-sm<?php if($status_filter=='pending')echo' active';?>">待付款</a>
-        <a href="user.php?status=paid" class="btn btn-outline-primary btn-sm<?php if($status_filter=='paid')echo' active';?>">已支付</a>
-        <a href="user.php?status=shipped" class="btn btn-outline-primary btn-sm<?php if($status_filter=='shipped')echo' active';?>">已发货</a>
-        <a href="user.php?status=completed" class="btn btn-outline-primary btn-sm<?php if($status_filter=='completed')echo' active';?>">已签收</a>
-        <a href="user.php?status=cancelled" class="btn btn-outline-primary btn-sm<?php if($status_filter=='cancelled')echo' active';?>">已取消</a>
+        <a href="user.php?status=已支付" class="btn btn-outline-primary btn-sm<?php if($status_filter=='已支付')echo' active';?>">已支付</a>
+        <a href="user.php?status=已发货" class="btn btn-outline-primary btn-sm<?php if($status_filter=='已发货')echo' active';?>">已发货</a>
+        <a href="user.php?status=已签收" class="btn btn-outline-primary btn-sm<?php if($status_filter=='已签收')echo' active';?>">已签收</a>
     </div>
 
     <h4>我的订单</h4>
@@ -153,12 +146,9 @@ unset($order);
                 </td>
                 <td rowspan="<?php echo $rowspan; ?>" class="align-middle">
                     <a href="order-detail.php?order_id=<?php echo $order['id']; ?>" class="btn btn-info btn-sm mb-1">详情</a>
-                    <?php
-                    $status_val = $order['status'];
-                    if ($status_val == '待付款'): ?>
-                        <a href="pay.php?order_id=<?php echo $order['id']; ?>" class="btn btn-success btn-sm mb-1">去支付</a>
-                    <?php endif; ?>
-                    <?php if ($status_val == '已发货'): ?>
+                    <?php if ($status == '已支付'): ?>
+                        <span class="text-secondary">待发货</span>
+                    <?php elseif ($status == '已发货'): ?>
                         <a href="confirm_receive.php?order_id=<?php echo $order['id']; ?>" class="btn btn-primary btn-sm mb-1" onclick="return confirm('确认签收？')">签收</a>
                     <?php endif; ?>
                 </td>

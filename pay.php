@@ -36,8 +36,8 @@ $conn->begin_transaction();
 try {
     // 扣钱
     $conn->query("UPDATE user SET balance = balance - {$order['total']} WHERE id = $user_id");
-    // 改订单状态
-    $conn->query("UPDATE orders SET status='paid', pay_time=NOW() WHERE id=$order_id");
+    // 改订单状态（用中文）
+    $conn->query("UPDATE orders SET status='已支付', pay_time=NOW() WHERE id=$order_id");
     $conn->commit();
 } catch(Exception $e) {
     $conn->rollback();
