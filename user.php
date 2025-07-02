@@ -10,34 +10,30 @@ $user_id = $_SESSION['user_id'];
 $user_res = $conn->query("SELECT username, email, balance FROM user WHERE id = $user_id");
 $user = $user_res->fetch_assoc();
 
-// 订单状态映射
+// 订单状态映射（仅用中文）
 $status_map = [
-    'pending' => '待付款',
-    'paid' => '已支付',
-    'shipped' => '已发货',
-    'completed' => '已签收',
-    'cancelled' => '已取消'
+    '待付款' => '待付款',
+    '已支付' => '已支付',
+    '已发货' => '已发货',
+    '已签收' => '已签收',
+    '已取消' => '已取消'
 ];
 
-// 根据筛选条件获取订单
+// 获取订单
 $status_filter = $_GET['status'] ?? '';
-$where = "user_id = $user_id";
-if ($status_filter == 'comment') {
-    // 未评价的已完成订单
-    $orders = [];
-    $sql = "SELECT o.* FROM orders o 
-            WHERE o.user_id=$user_id AND o.status='completed' 
-            AND NOT EXISTS (SELECT 1 FROM comment c WHERE c.order_id=o.id AND c.user_id=$user_id)
-            ORDER BY o.created_at DESC";
-    $res = $conn->query($sql);
-    while ($row = $res->fetch_assoc()) $orders[] = $row;
-} else if ($status_filter) {
-    $orders = [];
-    $sql = "SELECT * FROM orders WHERE user_id = $user_id AND status = '$status_filter' ORDER BY created_at DESC";
+$orders = [];
+if ($status_filter) {
+    // 只用中文状态
+    $filter = $status_filter;
+    if ($filter == 'pending') $filter = '待付款';
+    elseif ($filter == 'paid') $filter = '已支付';
+    elseif ($filter == 'shipped') $filter = '已发货';
+    elseif ($filter == 'completed') $filter = '已签收';
+    elseif ($filter == 'cancelled') $filter = '已取消';
+    $sql = "SELECT * FROM orders WHERE user_id = $user_id AND status='$filter' ORDER BY created_at DESC";
     $res = $conn->query($sql);
     while ($row = $res->fetch_assoc()) $orders[] = $row;
 } else {
-    $orders = [];
     $sql = "SELECT * FROM orders WHERE user_id = $user_id ORDER BY created_at DESC";
     $res = $conn->query($sql);
     while ($row = $res->fetch_assoc()) $orders[] = $row;
@@ -45,7 +41,7 @@ if ($status_filter == 'comment') {
 
 // 获取订单商品详情
 foreach ($orders as &$order) {
-    $item_sql = "SELECT oi.*, p.name AS product_name FROM order_item oi LEFT JOIN product p ON oi.product_id = p.id WHERE oi.order_id = {$order['id']}";
+    $item_sql = "SELECT oi.*, p.name AS product_name, p.image FROM order_item oi LEFT JOIN product p ON oi.product_id = p.id WHERE oi.order_id = {$order['id']}";
     $item_res = $conn->query($item_sql);
     $order['items'] = [];
     while ($item = $item_res->fetch_assoc()) $order['items'][] = $item;
@@ -61,6 +57,7 @@ unset($order);
     <style>
         .order-table ul { margin:0; padding:0; list-style:none; }
         .order-table ul li { margin-bottom:3px; }
+        .order-table img { height:40px; }
     </style>
 </head>
 <body>
@@ -86,6 +83,9 @@ unset($order);
 </nav>
 
 <div class="container mt-4">
+    <?php if (isset($_GET['signed'])): ?>
+        <div class="alert alert-success">签收成功！</div>
+    <?php endif; ?>
     <h2>个人中心</h2>
     <div class="mb-3">
         <b>用户名：</b><?php echo htmlspecialchars($user['username']); ?><br>
@@ -106,7 +106,6 @@ unset($order);
         <a href="user.php?status=paid" class="btn btn-outline-primary btn-sm<?php if($status_filter=='paid')echo' active';?>">已支付</a>
         <a href="user.php?status=shipped" class="btn btn-outline-primary btn-sm<?php if($status_filter=='shipped')echo' active';?>">已发货</a>
         <a href="user.php?status=completed" class="btn btn-outline-primary btn-sm<?php if($status_filter=='completed')echo' active';?>">已签收</a>
-        <a href="user.php?status=comment" class="btn btn-outline-primary btn-sm<?php if($status_filter=='comment')echo' active';?>">待评价</a>
         <a href="user.php?status=cancelled" class="btn btn-outline-primary btn-sm<?php if($status_filter=='cancelled')echo' active';?>">已取消</a>
     </div>
 
@@ -119,7 +118,9 @@ unset($order);
         <thead class="table-light">
             <tr>
                 <th>订单编号</th>
+                <th>下单时间</th>
                 <th>商品</th>
+                <th>图片</th>
                 <th>数量</th>
                 <th>总价</th>
                 <th>状态</th>
@@ -128,42 +129,42 @@ unset($order);
         </thead>
         <tbody>
         <?php foreach($orders as $order): ?>
+            <?php $rowspan = count($order['items']) ?: 1; ?>
+            <?php foreach($order['items'] as $i => $item): ?>
             <tr>
-                <td><?php echo htmlspecialchars($order['id']); ?></td>
+                <?php if ($i == 0): ?>
+                <td rowspan="<?php echo $rowspan; ?>"><?php echo htmlspecialchars($order['id']); ?></td>
+                <td rowspan="<?php echo $rowspan; ?>"><small><?php echo $order['created_at']; ?></small></td>
+                <?php endif; ?>
+                <td><?php echo htmlspecialchars($item['product_name']); ?></td>
                 <td>
-                    <ul class="order-items-list">
-                    <?php foreach($order['items'] as $item): ?>
-                        <li><?php echo htmlspecialchars($item['product_name']); ?></li>
-                    <?php endforeach; ?>
-                    </ul>
+                    <?php if (!empty($item['image'])): ?>
+                        <img src="<?php echo $item['image']; ?>" alt="商品图">
+                    <?php endif; ?>
                 </td>
-                <td>
-                    <ul class="order-items-list">
-                    <?php foreach($order['items'] as $item): ?>
-                        <li><?php echo intval($item['quantity']); ?></li>
-                    <?php endforeach; ?>
-                    </ul>
-                </td>
-                <td>￥<?php echo number_format($order['total'], 2); ?></td>
-                <td>
+                <td><?php echo intval($item['quantity']); ?></td>
+                <?php if ($i == 0): ?>
+                <td rowspan="<?php echo $rowspan; ?>" class="text-danger align-middle">￥<?php echo number_format($order['total'], 2); ?></td>
+                <td rowspan="<?php echo $rowspan; ?>" class="align-middle">
                     <?php
                         $status = $order['status'];
                         echo $status_map[$status] ?? htmlspecialchars($status);
                     ?>
                 </td>
-                <td>
+                <td rowspan="<?php echo $rowspan; ?>" class="align-middle">
                     <a href="order-detail.php?order_id=<?php echo $order['id']; ?>" class="btn btn-info btn-sm mb-1">详情</a>
-                    <?php if ($order['status'] == 'pending'): ?>
-                        <a href="pay.php?order_id=<?php echo $order['id']; ?>" class="btn btn-success btn-sm">去支付</a>
+                    <?php
+                    $status_val = $order['status'];
+                    if ($status_val == '待付款'): ?>
+                        <a href="pay.php?order_id=<?php echo $order['id']; ?>" class="btn btn-success btn-sm mb-1">去支付</a>
                     <?php endif; ?>
-                    <?php if ($order['status'] == 'shipped'): ?>
-                        <a href="confirm_receive.php?order_id=<?php echo $order['id']; ?>" class="btn btn-success btn-sm">确认收货</a>
-                    <?php endif; ?>
-                    <?php if ($order['status'] == 'completed'): ?>
-                        <a href="comment.php?order_id=<?php echo $order['id']; ?>" class="btn btn-warning btn-sm">去评价</a>
+                    <?php if ($status_val == '已发货'): ?>
+                        <a href="confirm_receive.php?order_id=<?php echo $order['id']; ?>" class="btn btn-primary btn-sm mb-1" onclick="return confirm('确认签收？')">签收</a>
                     <?php endif; ?>
                 </td>
+                <?php endif; ?>
             </tr>
+            <?php endforeach; ?>
         <?php endforeach; ?>
         </tbody>
     </table>

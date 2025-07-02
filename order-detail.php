@@ -28,10 +28,14 @@ $item_res = $conn->query($item_sql);
 $items = [];
 while($row = $item_res->fetch_assoc()) $items[] = $row;
 
-// 查询评价
-$comment_sql = "SELECT * FROM comment WHERE order_id=$order_id AND user_id=$user_id";
-$comment_res = $conn->query($comment_sql);
-$comment = $comment_res->fetch_assoc();
+// 仅用中文状态映射
+$map = [
+    '待付款'=>'待付款',
+    '已支付'=>'已支付',
+    '已发货'=>'已发货',
+    '已签收'=>'已签收',
+    '已取消'=>'已取消'
+];
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -47,13 +51,7 @@ $comment = $comment_res->fetch_assoc();
         <b>订单号：</b><?php echo $order['id']; ?>
         <b class="ms-4">下单时间：</b><?php echo $order['created_at']; ?>
         <b class="ms-4">订单状态：</b>
-        <?php
-            $map = [
-                'pending'=>'待付款','paid'=>'已支付','shipped'=>'已发货',
-                'completed'=>'已签收','cancelled'=>'已取消'
-            ];
-            echo $map[$order['status']] ?? $order['status'];
-        ?>
+        <?php echo $map[$order['status']] ?? htmlspecialchars($order['status']); ?>
     </div>
     <div class="mb-3">
         <b>收货人：</b><?php echo htmlspecialchars($order['recv_name']); ?>
@@ -81,22 +79,12 @@ $comment = $comment_res->fetch_assoc();
 
     <div>
         <a href="user.php" class="btn btn-secondary">返回我的订单</a>
-        <?php if($order['status']=='pending'): ?>
+        <?php if($order['status']=='待付款'): ?>
             <a href="pay.php?order_id=<?php echo $order['id']; ?>" class="btn btn-success">去支付</a>
-        <?php elseif($order['status']=='shipped'): ?>
-            <a href="confirm_receive.php?order_id=<?php echo $order['id']; ?>" class="btn btn-warning">确认收货</a>
-        <?php endif; ?>
-        <?php if($order['status']=='completed' && !$comment): ?>
-            <a href="comment.php?order_id=<?php echo $order['id']; ?>" class="btn btn-info">去评价</a>
+        <?php elseif($order['status']=='已发货'): ?>
+            <a href="confirm_receive.php?order_id=<?php echo $order['id']; ?>" class="btn btn-warning" onclick="return confirm('确认签收？')">确认收货</a>
         <?php endif; ?>
     </div>
-    <?php if($comment): ?>
-        <div class="mt-4 border rounded p-3 bg-light">
-            <b>您的评价：</b>
-            <div>评分：<?php echo $comment['score']; ?> 分</div>
-            <div><?php echo nl2br(htmlspecialchars($comment['content'])); ?></div>
-        </div>
-    <?php endif; ?>
 </div>
 </body>
 </html>

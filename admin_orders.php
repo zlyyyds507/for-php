@@ -1,19 +1,20 @@
 <?php
 session_start();
 include 'config.php';
-// 你可加管理员身份判断，比如 $_SESSION['is_admin']
+// 可加管理员身份判断，比如 if (!isset($_SESSION['is_admin'])) { header('Location: login.php'); exit; }
 
-// 处理发货
+// 发货操作
 if (isset($_GET['ship']) && is_numeric($_GET['ship'])) {
     $oid = intval($_GET['ship']);
-    $conn->query("UPDATE `orders` SET status='已发货', shipped_at=NOW() WHERE id=$oid");
+    // 只允许"已支付"订单发货，发货后状态设为"已发货"
+    $conn->query("UPDATE `orders` SET status='已发货', ship_time=NOW() WHERE id=$oid AND status='已支付'");
     header("Location: admin_orders.php");
     exit;
 }
 
-// 获取全部订单
+// 查询所有订单（注意表名为orders，状态显示需映射）
 $sql = "SELECT o.*, u.username, a.name as recv_name, a.phone, a.province, a.city, a.detail 
-        FROM `order` o 
+        FROM `orders` o 
         JOIN user u ON o.user_id = u.id 
         JOIN address a ON o.address_id = a.id 
         ORDER BY o.created_at DESC";
@@ -31,6 +32,16 @@ if ($orders) {
         $order_items[$row['order_id']][] = $row;
     }
 }
+
+// 状态映射（可根据实际需要调整）
+$status_map = [
+    '待付款'   => '待付款',
+    '已支付'   => '已支付',
+    '已发货'   => '已发货',
+    '已签收'   => '已签收',
+    '已完成'   => '已完成',
+    '已取消'   => '已取消',
+];
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -50,7 +61,10 @@ if ($orders) {
       <div class="accordion-item">
         <h2 class="accordion-header" id="heading<?php echo $order['id']; ?>">
           <button class="accordion-button <?php if($k>0) echo 'collapsed'; ?>" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?php echo $order['id']; ?>">
-            订单号：<?php echo $order['id']; ?> 用户：<?php echo htmlspecialchars($order['username']); ?> 下单时间：<?php echo $order['created_at']; ?> 状态：<?php echo $order['status']; ?>
+            订单号：<?php echo $order['id']; ?>
+            用户：<?php echo htmlspecialchars($order['username']); ?>
+            下单时间：<?php echo $order['created_at']; ?>
+            状态：<?php echo $status_map[$order['status']] ?? $order['status']; ?>
           </button>
         </h2>
         <div id="collapse<?php echo $order['id']; ?>" class="accordion-collapse collapse <?php if($k==0) echo 'show'; ?>">
@@ -69,11 +83,14 @@ if ($orders) {
                     <td>￥<?php echo number_format($item['price']*$item['quantity'],2); ?></td>
                 </tr>
                 <?php endforeach; ?>
-                <tr><td colspan="4" class="text-end">订单总额：</td><td class="text-danger">￥<?php echo number_format($order['total_amount'],2); ?></td></tr>
+                <tr>
+                    <td colspan="4" class="text-end">订单总额：</td>
+                    <td class="text-danger">￥<?php echo number_format($order['total'],2); ?></td>
+                </tr>
             </table>
             <div>
-                订单状态：<b><?php echo $order['status']; ?></b>
-                <?php if($order['status']=='待发货'): ?>
+                订单状态：<b><?php echo $status_map[$order['status']] ?? $order['status']; ?></b>
+                <?php if($order['status']=='已支付'): ?>
                     <a href="admin_orders.php?ship=<?php echo $order['id']; ?>" class="btn btn-success btn-sm ms-3" onclick="return confirm('确认发货？')">发货</a>
                 <?php elseif($order['status']=='已发货'): ?>
                     <span class="text-success">，已发货</span>
