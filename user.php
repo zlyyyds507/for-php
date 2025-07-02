@@ -3,6 +3,10 @@ session_start();
 include 'config.php';
 include 'status_map.php'; // 加入状态映射文件
 
+// 打开报错显示，建议开发环境加上
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // 检查登录
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -10,18 +14,25 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user_id = intval($_SESSION['user_id']);
 
-// 查询用户信息
-$user_sql = "SELECT username, email FROM user WHERE id = $user_id";
-$user = $conn->query($user_sql)->fetch_assoc();
+// 查询用户信息（注意user表名用反引号）
+$user_sql = "SELECT username, email FROM `user` WHERE id = $user_id";
+$user_result = $conn->query($user_sql);
+if (!$user_result) {
+    die("SQL执行失败: " . $conn->error . "<br>SQL: $user_sql");
+}
+$user = $user_result->fetch_assoc();
 
 // 订单状态筛选
 $status_filter = $_GET['status'] ?? '';
-$order_sql = "SELECT * FROM `order` WHERE user_id = $user_id";
+$order_sql = "SELECT * FROM `orders` WHERE user_id = $user_id";
 if ($status_filter) {
     $order_sql .= " AND status = '". $conn->real_escape_string($status_filter) ."'";
 }
 $order_sql .= " ORDER BY created_at DESC";
 $order_result = $conn->query($order_sql);
+if (!$order_result) {
+    die("SQL执行失败: " . $conn->error . "<br>SQL: $order_sql");
+}
 
 $orders = [];
 while ($order_row = $order_result->fetch_assoc()) {
@@ -30,8 +41,11 @@ while ($order_row = $order_result->fetch_assoc()) {
     $items_sql = "SELECT oi.*, p.name AS product_name 
                   FROM order_item oi 
                   LEFT JOIN product p ON oi.product_id = p.id 
-                  WHERE order_id = " . $order_row['id'];
+                  WHERE order_id = " . intval($order_row['id']);
     $items_result = $conn->query($items_sql);
+    if (!$items_result) {
+        die("SQL执行失败: " . $conn->error . "<br>SQL: $items_sql");
+    }
     while ($item_row = $items_result->fetch_assoc()) {
         $items[] = $item_row;
     }
@@ -55,7 +69,7 @@ while ($order_row = $order_result->fetch_assoc()) {
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
-        <a class="navbar-brand" href="KupaiShop.php">酷牌商城</a>
+        <a class="navbar-brand" href="KupaiShop.php">酷牌商城 KupaiShop</a>
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item"><a class="nav-link" href="KupaiShop.php">首页</a></li>

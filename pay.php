@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $order_id = intval($_GET['order_id'] ?? 0);
 // 校验订单归属
-$sql = "SELECT * FROM `order` WHERE id = $order_id AND user_id = {$_SESSION['user_id']}";
+$sql = "SELECT * FROM `orders` WHERE id = $order_id AND user_id = {$_SESSION['user_id']}";
 $result = $conn->query($sql);
 if (!$result || $result->num_rows == 0) {
     echo "订单不存在或无权操作！";
@@ -24,7 +24,7 @@ if ($order['status'] !== 'pending') {
 }
 
 // 模拟支付过程（此处直接更改状态即可）
-$conn->query("UPDATE `order` SET status='paid', pay_time=NOW() WHERE id=$order_id");
+$conn->query("UPDATE `orders` SET status='paid', pay_time=NOW() WHERE id=$order_id");
 
 // 跳转支付成功页或回个人中心
 header("Location: user.php?pay_success=1");

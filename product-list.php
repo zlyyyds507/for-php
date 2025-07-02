@@ -1,4 +1,7 @@
 <?php
+// 必须有session_start才能识别登录状态
+session_start();
+
 // 1. 引入数据库配置，连接数据库
 include 'config.php';
 
@@ -83,9 +86,14 @@ $totalPages = ceil($total / $pageSize);
                 <li class="nav-item"><a class="nav-link" href="cart.php">购物车</a></li>
                 <li class="nav-item"><a class="nav-link" href="user.php">个人中心</a></li>
             </ul>
-            <!-- 登录/注册按钮 -->
-            <a class="btn btn-outline-light me-2" href="login.php">登录</a>
-            <a class="btn btn-light" href="register.php">注册</a>
+            <!-- 登录/注册 或 用户信息 -->
+            <?php if(isset($_SESSION['user_id'])): ?>
+                <span class="navbar-text me-2">欢迎，<?php echo htmlspecialchars($_SESSION['username']); ?></span>
+                <a class="btn btn-outline-light" href="logout.php">退出</a>
+            <?php else: ?>
+                <a class="btn btn-outline-light me-2" href="login.php">登录</a>
+                <a class="btn btn-light" href="register.php">注册</a>
+            <?php endif; ?>
         </div>
     </div>
 </nav>

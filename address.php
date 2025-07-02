@@ -12,6 +12,22 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
+// 处理设为默认
+if (isset($_GET['default'])) {
+    $id = intval($_GET['default']);
+    $conn->query("UPDATE address SET is_default=0 WHERE user_id=$user_id");
+    $conn->query("UPDATE address SET is_default=1 WHERE id=$id AND user_id=$user_id");
+    header("Location: address.php");
+    exit;
+}
+
+// 处理“使用”按钮
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['use_address_id'])) {
+    $_SESSION['order_address_id'] = intval($_POST['use_address_id']);
+    header("Location: checkout.php");
+    exit;
+}
+
 // 查询所有地址
 $sql = "SELECT * FROM address WHERE user_id = $user_id ORDER BY is_default DESC, id DESC";
 $result = $conn->query($sql);
@@ -36,10 +52,20 @@ while ($row = $result->fetch_assoc()) $addresses[] = $row;
         <td><?php echo htmlspecialchars($addr['name']); ?></td>
         <td><?php echo htmlspecialchars($addr['phone']); ?></td>
         <td><?php echo htmlspecialchars($addr['province'].$addr['city'].$addr['detail']); ?></td>
-        <td><?php echo $addr['is_default'] ? '是' : ''; ?></td>
+        <td>
+            <?php echo $addr['is_default'] ? '<span class="text-success">是</span>' : ''; ?>
+        </td>
         <td>
           <a href="edit_address.php?id=<?php echo $addr['id']; ?>" class="btn btn-secondary btn-sm">编辑</a>
           <a href="address.php?delete=<?php echo $addr['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确认删除？')">删除</a>
+          <?php if (!$addr['is_default']): ?>
+            <a href="address.php?default=<?php echo $addr['id']; ?>" class="btn btn-success btn-sm">设为默认</a>
+          <?php endif; ?>
+          <!-- 使用按钮 -->
+          <form method="post" action="address.php" style="display:inline;">
+            <input type="hidden" name="use_address_id" value="<?php echo $addr['id']; ?>">
+            <button type="submit" class="btn btn-info btn-sm">使用</button>
+          </form>
         </td>
       </tr>
     <?php endforeach; ?>
