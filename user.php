@@ -1,57 +1,56 @@
 <?php
 session_start();
 include 'config.php';
-include 'status_map.php'; // 加入状态映射文件
 
-// 打开报错显示，建议开发环境加上
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 
-// 检查登录
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
-}
-$user_id = intval($_SESSION['user_id']);
+$user_id = $_SESSION['user_id'];
 
-// 查询用户信息（注意user表名用反引号）
-$user_sql = "SELECT username, email FROM `user` WHERE id = $user_id";
-$user_result = $conn->query($user_sql);
-if (!$user_result) {
-    die("SQL执行失败: " . $conn->error . "<br>SQL: $user_sql");
-}
-$user = $user_result->fetch_assoc();
+// 查询用户基本信息和余额
+$user_res = $conn->query("SELECT username, email, balance FROM user WHERE id = $user_id");
+$user = $user_res->fetch_assoc();
 
-// 订单状态筛选
+// 订单状态映射
+$status_map = [
+    'pending' => '待付款',
+    'paid' => '已支付',
+    'shipped' => '已发货',
+    'completed' => '已签收',
+    'cancelled' => '已取消'
+];
+
+// 根据筛选条件获取订单
 $status_filter = $_GET['status'] ?? '';
-$order_sql = "SELECT * FROM `orders` WHERE user_id = $user_id";
-if ($status_filter) {
-    $order_sql .= " AND status = '". $conn->real_escape_string($status_filter) ."'";
-}
-$order_sql .= " ORDER BY created_at DESC";
-$order_result = $conn->query($order_sql);
-if (!$order_result) {
-    die("SQL执行失败: " . $conn->error . "<br>SQL: $order_sql");
+$where = "user_id = $user_id";
+if ($status_filter == 'comment') {
+    // 未评价的已完成订单
+    $orders = [];
+    $sql = "SELECT o.* FROM orders o 
+            WHERE o.user_id=$user_id AND o.status='completed' 
+            AND NOT EXISTS (SELECT 1 FROM comment c WHERE c.order_id=o.id AND c.user_id=$user_id)
+            ORDER BY o.created_at DESC";
+    $res = $conn->query($sql);
+    while ($row = $res->fetch_assoc()) $orders[] = $row;
+} else if ($status_filter) {
+    $orders = [];
+    $sql = "SELECT * FROM orders WHERE user_id = $user_id AND status = '$status_filter' ORDER BY created_at DESC";
+    $res = $conn->query($sql);
+    while ($row = $res->fetch_assoc()) $orders[] = $row;
+} else {
+    $orders = [];
+    $sql = "SELECT * FROM orders WHERE user_id = $user_id ORDER BY created_at DESC";
+    $res = $conn->query($sql);
+    while ($row = $res->fetch_assoc()) $orders[] = $row;
 }
 
-$orders = [];
-while ($order_row = $order_result->fetch_assoc()) {
-    // 查询订单商品
-    $items = [];
-    $items_sql = "SELECT oi.*, p.name AS product_name 
-                  FROM order_item oi 
-                  LEFT JOIN product p ON oi.product_id = p.id 
-                  WHERE order_id = " . intval($order_row['id']);
-    $items_result = $conn->query($items_sql);
-    if (!$items_result) {
-        die("SQL执行失败: " . $conn->error . "<br>SQL: $items_sql");
-    }
-    while ($item_row = $items_result->fetch_assoc()) {
-        $items[] = $item_row;
-    }
-    $order_row['items'] = $items;
-    $orders[] = $order_row;
+// 获取订单商品详情
+foreach ($orders as &$order) {
+    $item_sql = "SELECT oi.*, p.name AS product_name FROM order_item oi LEFT JOIN product p ON oi.product_id = p.id WHERE oi.order_id = {$order['id']}";
+    $item_res = $conn->query($item_sql);
+    $order['items'] = [];
+    while ($item = $item_res->fetch_assoc()) $order['items'][] = $item;
 }
+unset($order);
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -60,10 +59,8 @@ while ($order_row = $order_result->fetch_assoc()) {
     <title>个人中心 - 酷牌商城</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .user-info-box { background: #f8f9fa; border-radius: 10px; padding: 32px 24px 20px 24px; margin-bottom: 24px; box-shadow: 0 2px 8px #0001; max-width: 480px; }
-        .order-table th, .order-table td { vertical-align: middle; }
-        .order-table .order-items-list { margin: 0; padding: 0; list-style: none; }
-        .order-table .order-items-list li { margin-bottom: 3px; }
+        .order-table ul { margin:0; padding:0; list-style:none; }
+        .order-table ul li { margin-bottom:3px; }
     </style>
 </head>
 <body>
@@ -77,31 +74,42 @@ while ($order_row = $order_result->fetch_assoc()) {
                 <li class="nav-item"><a class="nav-link" href="cart.php">购物车</a></li>
                 <li class="nav-item"><a class="nav-link active" href="user.php">个人中心</a></li>
             </ul>
-            <span class="navbar-text me-2">欢迎，<?php echo htmlspecialchars($user['username']); ?></span>
-            <a class="btn btn-outline-light" href="logout.php">退出</a>
+            <?php if(isset($_SESSION['user_id'])): ?>
+                <span class="navbar-text me-2">欢迎，<?php echo htmlspecialchars($user['username']); ?></span>
+                <a class="btn btn-outline-light" href="logout.php">退出</a>
+            <?php else: ?>
+                <a class="btn btn-outline-light me-2" href="login.php">登录</a>
+                <a class="btn btn-light" href="register.php">注册</a>
+            <?php endif; ?>
         </div>
     </div>
 </nav>
-<div class="container mt-4 mb-5">
+
+<div class="container mt-4">
     <h2>个人中心</h2>
-    <!-- 用户信息 -->
-    <div class="user-info-box mb-4">
-        <div class="mb-2">用户名：<?php echo htmlspecialchars($user['username']); ?></div>
-        <div class="mb-2">邮箱：<?php echo htmlspecialchars($user['email']); ?></div>
-        <a href="edit-profile.php" class="btn btn-secondary btn-sm me-2">修改信息</a>
-        <a href="address.php" class="btn btn-info btn-sm me-2">收货地址管理</a>
-        <a href="logout.php" class="btn btn-danger btn-sm">退出登录</a>
-    </div>
-    <!-- 订单状态tab -->
     <div class="mb-3">
-      <a href="user.php" class="btn btn-outline-primary btn-sm<?php if(!$status_filter)echo' active';?>">全部</a>
-      <a href="user.php?status=pending" class="btn btn-outline-primary btn-sm<?php if($status_filter=='pending')echo' active';?>">待付款</a>
-      <a href="user.php?status=paid" class="btn btn-outline-primary btn-sm<?php if($status_filter=='paid')echo' active';?>">待发货</a>
-      <a href="user.php?status=shipped" class="btn btn-outline-primary btn-sm<?php if($status_filter=='shipped')echo' active';?>">待收货</a>
-      <a href="user.php?status=completed" class="btn btn-outline-primary btn-sm<?php if($status_filter=='completed')echo' active';?>">已签收</a>
-      <a href="user.php?status=comment" class="btn btn-outline-primary btn-sm<?php if($status_filter=='comment')echo' active';?>">待评价</a>
-      <a href="user.php?status=cancelled" class="btn btn-outline-primary btn-sm<?php if($status_filter=='cancelled')echo' active';?>">已取消</a>
+        <b>用户名：</b><?php echo htmlspecialchars($user['username']); ?><br>
+        <b>邮箱：</b><?php echo htmlspecialchars($user['email']); ?><br>
+        <b>账户余额：</b>
+        <span class="text-success">￥<?php echo number_format($user['balance'],2); ?></span>
+        <span class="text-muted ms-2">(余额由管理员发放或充值)</span>
+        <a href="edit-profile.php" class="btn btn-warning btn-sm ms-2">修改信息</a>
     </div>
+
+    <div class="mb-3">
+        <a href="address.php" class="btn btn-info btn-sm">收货地址管理</a>
+    </div>
+
+    <div class="mb-4">
+        <a href="user.php" class="btn btn-outline-primary btn-sm<?php if(!$status_filter)echo' active';?>">全部订单</a>
+        <a href="user.php?status=pending" class="btn btn-outline-primary btn-sm<?php if($status_filter=='pending')echo' active';?>">待付款</a>
+        <a href="user.php?status=paid" class="btn btn-outline-primary btn-sm<?php if($status_filter=='paid')echo' active';?>">已支付</a>
+        <a href="user.php?status=shipped" class="btn btn-outline-primary btn-sm<?php if($status_filter=='shipped')echo' active';?>">已发货</a>
+        <a href="user.php?status=completed" class="btn btn-outline-primary btn-sm<?php if($status_filter=='completed')echo' active';?>">已签收</a>
+        <a href="user.php?status=comment" class="btn btn-outline-primary btn-sm<?php if($status_filter=='comment')echo' active';?>">待评价</a>
+        <a href="user.php?status=cancelled" class="btn btn-outline-primary btn-sm<?php if($status_filter=='cancelled')echo' active';?>">已取消</a>
+    </div>
+
     <h4>我的订单</h4>
     <?php if (empty($orders)): ?>
         <div class="alert alert-info">暂无订单记录。</div>
@@ -121,7 +129,7 @@ while ($order_row = $order_result->fetch_assoc()) {
         <tbody>
         <?php foreach($orders as $order): ?>
             <tr>
-                <td><?php echo htmlspecialchars($order['order_no']); ?></td>
+                <td><?php echo htmlspecialchars($order['id']); ?></td>
                 <td>
                     <ul class="order-items-list">
                     <?php foreach($order['items'] as $item): ?>
@@ -140,7 +148,7 @@ while ($order_row = $order_result->fetch_assoc()) {
                 <td>
                     <?php
                         $status = $order['status'];
-                        echo isset($status_map[$status]) ? $status_map[$status] : htmlspecialchars($status);
+                        echo $status_map[$status] ?? htmlspecialchars($status);
                     ?>
                 </td>
                 <td>
@@ -162,7 +170,7 @@ while ($order_row = $order_result->fetch_assoc()) {
     </div>
     <?php endif; ?>
 </div>
-<footer class="bg-primary text-white text-center py-3">&copy; 2025 酷牌商城</footer>
+<footer class="bg-primary text-white text-center py-3">&copy; <?php echo date('Y'); ?> 酷牌商城</footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

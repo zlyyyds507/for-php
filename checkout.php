@@ -42,12 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay'])) {
     } elseif (empty($cart_products)) {
         $err = "购物车为空，无法下单！";
     } else {
-        // 1. 新增订单主表
+        // 1. 新增订单主表（状态设为待付款/pending）
         $address_id = $address['id'];
-        $total_amount = $total;
         $now = date('Y-m-d H:i:s');
-        $status = '待发货';
-        $conn->query("INSERT INTO `orders` (user_id, address_id, total_amount, status, created_at) VALUES ($user_id, $address_id, $total_amount, '$status', '$now')");
+        $status = 'pending'; // 订单初始状态，和表结构一致
+        $sql = "INSERT INTO `orders` (user_id, address_id, total, status, created_at) VALUES ($user_id, $address_id, $total, '$status', '$now')";
+        $res = $conn->query($sql);
+        if (!$res) {
+            die("订单插入失败: " . $conn->error);
+        }
         $order_id = $conn->insert_id;
 
         // 2. 新增订单商品表
@@ -62,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay'])) {
         unset($_SESSION['cart']);
         unset($_SESSION['order_address_id']);
 
-        // 4. 跳转到订单成功页
-        header("Location: order_success.php?order_id=$order_id");
+        // 4. 跳转到支付页
+        header("Location: pay.php?order_id=$order_id");
         exit;
     }
 }
